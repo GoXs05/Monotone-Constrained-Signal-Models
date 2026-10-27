@@ -99,3 +99,11 @@ def test_trade_bucket_boundaries():
     r0, r1 = out.row(0, named=True), out.row(1, named=True)
     assert (r0["buy_qty"], r0["sell_qty"], r0["n_trades"]) == (1.0, 2.0, 2)
     assert (r1["buy_qty"], r1["sell_qty"], r1["n_trades"]) == (8.0, 0.0, 1)
+
+
+def test_exec_spread_asof_t_feature_spread_asof_t_minus_latency():
+    b = book([(T0 - 500, 1, 99, 101), (T0 - 10, 2, 99, 104)])
+    out = align_frames(b, NO_TRADES, make_grid(T0, 1), L).row(0, named=True)
+    # Row stamped T0 - 10 is past the feature cutoff T0 - 50 but visible at execution
+    assert out["best_ask_price"] - out["best_bid_price"] == 2.0
+    assert out["exec_spread_px"] == 5.0

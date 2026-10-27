@@ -8,8 +8,8 @@ from msig.labels import add_labels
 LABEL_INPUTS = ["label_mid", "label_ts"]
 
 
-# Execution cost at t only, never an entry input, so the lookahead test exempts it
-EXECUTION_ONLY = ["spread_ticks"]
+# Book as-of t for execution cost only, never an entry input, so the lookahead test exempts it
+EXECUTION_ONLY = ["exec_spread_ticks"]
 
 
 def model_features(cfg: dict) -> list[str]:
@@ -54,8 +54,12 @@ def label_columns(cfg: dict) -> list[str]:
 def build_frame(aligned: pl.DataFrame, cfg: dict, symbol: str) -> pl.DataFrame:
     """Aligned grid (one or more contiguous days) to features and labels."""
     f = cfg["features"]
+    tick = cfg["tick_size"][symbol]
     df = aligned.sort("t").with_columns(
-        feature_mid(), l1_imbalance(), spread_ticks(cfg["tick_size"][symbol])
+        feature_mid(),
+        l1_imbalance(),
+        spread_ticks(tick),
+        (pl.col("exec_spread_px") / tick).round(0).cast(pl.Int32).alias("exec_spread_ticks"),
     )
     df = flow_imbalance(df, f["flow_lookbacks_s"])
     df = realized_vol(df, f["vol_window_s"])
@@ -64,4 +68,4 @@ def build_frame(aligned: pl.DataFrame, cfg: dict, symbol: str) -> pl.DataFrame:
     df = add_labels(
         df, cfg["labels"]["horizons_s"], cfg["labels"]["vol_normalize"], f"rv_{f['vol_window_s']}s"
     )
-    return df.select("t", *feature_columns(cfg), *label_columns(cfg))
+    return df.select("t", *feature_columns(cfg), *EXECUTION_ONLY, *label_columns(cfg))

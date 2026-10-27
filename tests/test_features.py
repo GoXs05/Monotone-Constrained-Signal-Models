@@ -47,7 +47,7 @@ def test_past_return_anchored_at_t_minus_latency(lat):
             assert not np.allclose(got[h:], at_t[h:])
 
 
-def test_spread_cannot_be_model_input():
-    cfg = {**CFG, "features": {**CFG["features"], "model": ["imb_l1", "spread_ticks"]}}
+def test_exec_spread_cannot_be_model_input():
+    cfg = {**CFG, "features": {**CFG["features"], "model": ["imb_l1", "exec_spread_ticks"]}}
     with pytest.raises(ValueError):
         model_features(cfg)

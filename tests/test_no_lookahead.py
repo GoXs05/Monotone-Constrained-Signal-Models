@@ -67,13 +67,15 @@ def corrupt_after(df, ts_col, cutoff, noise):
     return pl.concat([kept, fresh]).sort(ts_col)
 
 
-# spread_ticks is execution cost at t only and never an entry input
-CHECKED = [c for c in feature_columns(CFG) if c not in EXECUTION_ONLY]
+# exec_spread_ticks is book as-of t for execution cost only, so it is not a feature column
+CHECKED = feature_columns(CFG)
 
 
 def test_checked_covers_model_and_aux():
     assert set(model_features(CFG)) <= set(CHECKED)
-    assert set(aux_columns(CFG)) - set(EXECUTION_ONLY) <= set(CHECKED)
+    assert set(aux_columns(CFG)) <= set(CHECKED)
+    assert "spread_ticks" in CHECKED
+    assert not set(EXECUTION_ONLY) & set(CHECKED)
 
 
 def features(book, trades, lat):

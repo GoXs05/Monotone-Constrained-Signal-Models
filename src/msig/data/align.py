@@ -3,7 +3,7 @@
 For grid time t and latency L:
   feature book state = last book row with transaction_time <= t - L
   feature trade bucket = trades with transact_time in (t - L - 1000, t - L]
-  label_mid = mid of last book row with transaction_time <= t
+  label_mid, exec_spread_px = mid and spread of last book row with transaction_time <= t
 """
 
 import argparse
@@ -59,6 +59,7 @@ def align_frames(
         book.select(
             pl.col(BOOK_TS).alias("label_ts"),
             ((pl.col("best_bid_price") + pl.col("best_ask_price")) / 2).alias("label_mid"),
+            (pl.col("best_ask_price") - pl.col("best_bid_price")).alias("exec_spread_px"),
         ),
         left_on="t",
         right_on="label_ts",
@@ -79,7 +80,7 @@ def align_frames(
     )
     return (
         feat_book.drop("key")
-        .join(label_book.select("t", "label_ts", "label_mid"), on="t", how="left")
+        .join(label_book.select("t", "label_ts", "label_mid", "exec_spread_px"), on="t", how="left")
         .join(flow, on="t", how="left")
         .with_columns(pl.col("buy_qty", "sell_qty", "n_trades").fill_null(0))
         .sort("t")
