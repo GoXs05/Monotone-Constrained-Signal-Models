@@ -4,6 +4,8 @@ import argparse
 import datetime as dt
 import hashlib
 import shutil
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -25,11 +27,22 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def fetch(url: str, dest: Path) -> None:
+def fetch(url: str, dest: Path, retries: int = 6) -> None:
     tmp = dest.with_suffix(dest.suffix + ".part")
-    with urllib.request.urlopen(url, timeout=60) as r, open(tmp, "wb") as f:
-        shutil.copyfileobj(r, f, length=1 << 20)
-    tmp.replace(dest)
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r, open(tmp, "wb") as f:
+                shutil.copyfileobj(r, f, length=1 << 20)
+            tmp.replace(dest)
+            return
+        except urllib.error.HTTPError as e:
+            # A 4xx means the file is not there; retrying will not change that
+            if e.code < 500 or attempt == retries - 1:
+                raise
+        except OSError:
+            if attempt == retries - 1:
+                raise
+        time.sleep(min(2**attempt * 5, 300))
 
 
 def fetch_verified(kind: str, symbol: str, day: dt.date, cfg: dict) -> Path:
