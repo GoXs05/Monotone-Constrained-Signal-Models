@@ -1,0 +1,27 @@
+# Assistant config
+CLAUDE.md
+.claude/
+.cursor/
+.aider*
+.copilot/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Data and results
+/data/
+/results/*
+!/results/final/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
