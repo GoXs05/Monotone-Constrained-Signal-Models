@@ -1,0 +1,38 @@
+assets: [BTCUSDT, ETHUSDT]
+
+# Development range; holdout is untouched until Phase 7
+dev_start: 2023-06-01
+dev_end: 2024-02-29
+holdout_start: 2024-03-01
+holdout_end: 2024-03-30
+
+# EDA for constraints.yaml uses this window only
+eda_start: 2023-06-01
+eda_end: 2023-06-14
+
+data:
+  market: um
+  kinds: [bookTicker, aggTrades]
+  keep_raw: false
+  raw_dir: data/raw
+  parquet_dir: data/parquet
+
+align:
+  # Features at t see book and trade rows stamped <= t - latency_ms
+  latency_ms: 50
+  latency_sensitivity_ms: [0, 50, 250]
+
+tick_size:
+  BTCUSDT: 0.1
+  ETHUSDT: 0.01
+
+labels:
+  horizons_s: [1, 5, 10, 30, 60, 300]
+  vol_normalize: false
+
+features:
+  flow_lookbacks_s: [1, 5, 30, 60, 300]
+  vol_window_s: 300
+
+regime:
+  n_buckets: 3

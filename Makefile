@@ -1,10 +1,10 @@
+export PYTHONIOENCODING := utf-8
 PY := uv run python
 
 .PHONY: data features test synthetic walkforward learning-curve holdout lint
 
 data:
 	$(PY) -m msig.data.download
-	$(PY) -m msig.data.load
 	$(PY) -m msig.data.align
 
 features:
