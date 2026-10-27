@@ -1,9 +1,11 @@
 import polars as pl
 
+from msig.data.align import ALIGN_CODE
 from msig.features.book import feature_mid, l1_imbalance, past_return_bps, spread_ticks
 from msig.features.flow import flow_imbalance
 from msig.features.regime import realized_vol
 from msig.labels import add_labels
+from msig.provenance import make_stamp
 
 LABEL_INPUTS = ["label_mid", "label_ts"]
 
@@ -69,3 +71,27 @@ def build_frame(aligned: pl.DataFrame, cfg: dict, symbol: str) -> pl.DataFrame:
         df, cfg["labels"]["horizons_s"], cfg["labels"]["vol_normalize"], f"rv_{f['vol_window_s']}s"
     )
     return df.select("t", *feature_columns(cfg), *EXECUTION_ONLY, *label_columns(cfg))
+
+
+FEATURE_CODE = [
+    *ALIGN_CODE,
+    "src/msig/features/book.py",
+    "src/msig/features/flow.py",
+    "src/msig/features/regime.py",
+    "src/msig/features/build.py",
+    "src/msig/labels.py",
+    "scripts/build_features.py",
+]
+
+
+def feature_stamp(cfg: dict, symbol: str, lat: int, git: str) -> dict:
+    payload = {
+        "latency_ms": lat,
+        "tick_size": cfg["tick_size"][symbol],
+        "features": cfg["features"],
+        "labels": cfg["labels"],
+        # Neighbour-day context and end-of-range null labels depend on these
+        "dev_start": cfg["dev_start"],
+        "dev_end": cfg["dev_end"],
+    }
+    return make_stamp(payload, FEATURE_CODE, git)

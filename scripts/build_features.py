@@ -10,12 +10,14 @@ from msig.config import (
     RESULTS_DIR,
     day_range,
     day_start_ms,
+    git_hash,
     latencies,
     load_experiment,
     write_meta,
 )
 from msig.data.load import load_days, parquet_path
-from msig.features.build import build_frame, label_columns
+from msig.features.build import build_frame, feature_stamp, label_columns
+from msig.provenance import is_current, require_clean, write_stamped
 
 ONE_DAY = dt.timedelta(days=1)
 
@@ -31,10 +33,13 @@ def neighbours(day: dt.date, kind: str, symbol: str, cfg: dict, allow_holdout: b
     return days
 
 
-def build_day(symbol: str, day: dt.date, lat: int, cfg: dict, allow_holdout: bool = False) -> None:
+def build_day(
+    symbol: str, day: dt.date, lat: int, cfg: dict, stamp: dict, allow_holdout: bool = False
+) -> bool:
+    """Returns True when the file was (re)built."""
     out = parquet_path(f"features_L{lat}", symbol, day, cfg)
-    if out.exists():
-        return
+    if is_current(out, stamp):
+        return False
     kind = f"aligned_L{lat}"
     aligned = load_days(
         kind, symbol, neighbours(day, kind, symbol, cfg, allow_holdout), cfg, allow_holdout
@@ -43,8 +48,8 @@ def build_day(symbol: str, day: dt.date, lat: int, cfg: dict, allow_holdout: boo
     frame = build_frame(aligned, cfg, symbol).filter(
         pl.col("t").is_between(start, start + DAY_MS - 1)
     )
-    out.parent.mkdir(parents=True, exist_ok=True)
-    frame.write_parquet(out, compression="zstd")
+    write_stamped(frame, out, stamp)
+    return True
 
 
 def zero_label_report(days: list[dt.date], cfg: dict) -> pl.DataFrame:
@@ -85,7 +90,10 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--start", type=dt.date.fromisoformat)
     p.add_argument("--end", type=dt.date.fromisoformat)
+    p.add_argument("--allow-dirty", action="store_true")
     args = p.parse_args()
+    require_clean(args.allow_dirty)
+    git = git_hash()
     cfg = load_experiment()
     lb = [
         *cfg["features"]["flow_lookbacks_s"],
@@ -98,9 +106,11 @@ def main() -> None:
     days = day_range(args.start or cfg["dev_start"], args.end or cfg["dev_end"])
     for symbol in cfg["assets"]:
         for lat in latencies(cfg):
-            for day in days:
-                build_day(symbol, day, lat, cfg)
-            print(f"features {symbol} L={lat} done", flush=True)
+            stamp = feature_stamp(cfg, symbol, lat, git)
+            built = sum(build_day(symbol, day, lat, cfg, stamp) for day in days)
+            print(
+                f"features {symbol} L={lat}: built {built}, current {len(days) - built}", flush=True
+            )
 
     dq_path = RESULTS_DIR / "data_quality.csv"
     empty = empty_window_report(days, cfg)

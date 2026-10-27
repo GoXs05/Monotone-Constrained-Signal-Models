@@ -16,11 +16,13 @@ from msig.config import (
     RESULTS_DIR,
     day_range,
     day_start_ms,
+    git_hash,
     latencies,
     load_experiment,
     write_meta,
 )
 from msig.data.load import check_holdout_access, load_days, parquet_path
+from msig.provenance import is_current, make_stamp, require_clean, write_stamped
 
 BOOK_TS = "transaction_time"
 TRADE_TS = "transact_time"
@@ -132,37 +134,61 @@ def with_context(kind: str, symbol: str, day: dt.date, cfg: dict, allow_holdout:
     return pl.concat([tail, cur]), cur
 
 
-def align_day(symbol: str, day: dt.date, cfg: dict, allow_holdout: bool = False) -> dict:
+ALIGN_CODE = [
+    "src/msig/data/align.py",
+    "src/msig/data/load.py",
+    "src/msig/config.py",
+    "src/msig/provenance.py",
+]
+
+
+def align_stamps(cfg: dict, git: str) -> dict:
+    stamps = {lat: make_stamp({"latency_ms": lat}, ALIGN_CODE, git) for lat in latencies(cfg)}
+    stamps["dq"] = make_stamp({"latencies": latencies(cfg), "gap_ms": GAP_MS}, ALIGN_CODE, git)
+    return stamps
+
+
+def align_day(
+    symbol: str, day: dt.date, cfg: dict, stamps: dict, allow_holdout: bool = False
+) -> dict:
     check_holdout_access([day], cfg, allow_holdout)
     lats = latencies(cfg)
     dq_path = parquet_path("dq", symbol, day, cfg)
     outs = {lat: parquet_path(f"aligned_L{lat}", symbol, day, cfg) for lat in lats}
-    if dq_path.exists() and all(p.exists() for p in outs.values()):
+    stale = [lat for lat, out in outs.items() if not is_current(out, stamps[lat])]
+    if not stale and is_current(dq_path, stamps["dq"]):
         return pl.read_parquet(dq_path).row(0, named=True)
 
     book, book_day = with_context("bookTicker", symbol, day, cfg, allow_holdout)
     trades, trades_day = with_context("aggTrades", symbol, day, cfg, allow_holdout)
     grid = make_grid(day_start_ms(day), 86_400)
-    for lat, out in outs.items():
-        out.parent.mkdir(parents=True, exist_ok=True)
-        align_frames(book, trades, grid, lat).write_parquet(out, compression="zstd")
+    for lat in stale:
+        write_stamped(align_frames(book, trades, grid, lat), outs[lat], stamps[lat])
     row = quality_row(book_day, trades_day, day, symbol, lats)
-    dq_path.parent.mkdir(parents=True, exist_ok=True)
-    pl.DataFrame([row]).write_parquet(dq_path)
+    write_stamped(pl.DataFrame([row]), dq_path, stamps["dq"])
     return row
+
+
+def value_at_offset(df: pl.DataFrame, col: str, offset_s: int, name: str) -> pl.DataFrame:
+    """Add `name` = value of `col` at grid time t + offset_s, null where that row is absent."""
+    other = df.select((pl.col("t") - offset_s * 1000).alias("t"), pl.col(col).alias(name))
+    return df.join(other, on="t", how="left").sort("t")
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--start", type=dt.date.fromisoformat)
     p.add_argument("--end", type=dt.date.fromisoformat)
+    p.add_argument("--allow-dirty", action="store_true")
     args = p.parse_args()
+    require_clean(args.allow_dirty)
     cfg = load_experiment()
+    stamps = align_stamps(cfg, git_hash())
     days = day_range(args.start or cfg["dev_start"], args.end or cfg["dev_end"])
     rows = []
     for symbol in cfg["assets"]:
         for day in days:
-            rows.append(align_day(symbol, day, cfg))
+            rows.append(align_day(symbol, day, cfg, stamps))
             print(f"aligned {symbol} {day}", flush=True)
     RESULTS_DIR.mkdir(exist_ok=True)
     out = RESULTS_DIR / "data_quality.csv"
@@ -173,9 +199,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-def value_at_offset(df: pl.DataFrame, col: str, offset_s: int, name: str) -> pl.DataFrame:
-    """Add `name` = value of `col` at grid time t + offset_s, null where that row is absent."""
-    other = df.select((pl.col("t") - offset_s * 1000).alias("t"), pl.col(col).alias(name))
-    return df.join(other, on="t", how="left").sort("t")
