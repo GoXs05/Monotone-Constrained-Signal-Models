@@ -8,15 +8,31 @@ from msig.labels import add_labels
 LABEL_INPUTS = ["label_mid", "label_ts"]
 
 
-def feature_columns(cfg: dict) -> list[str]:
+def model_features(cfg: dict) -> list[str]:
+    return list(cfg["features"]["model"])
+
+
+def aux_columns(cfg: dict) -> list[str]:
+    """Known-at-t columns that are not model inputs: costs, regimes, baselines, data quality."""
     f, lab = cfg["features"], cfg["labels"]
     return [
-        "imb_l1",
         "spread_ticks",
-        *[f"flow_imb_{w}s" for w in f["flow_lookbacks_s"]],
         f"rv_{f['vol_window_s']}s",
         *[f"past_ret_{h}s" for h in lab["horizons_s"]],
+        *[f"trades_{w}s" for w in f["flow_lookbacks_s"]],
     ]
+
+
+def feature_columns(cfg: dict) -> list[str]:
+    computed = [
+        "imb_l1",
+        *[f"flow_imb_{w}s" for w in cfg["features"]["flow_lookbacks_s"]],
+        *aux_columns(cfg),
+    ]
+    missing = set(model_features(cfg)) - set(computed)
+    if missing:
+        raise ValueError(f"model features not computed: {sorted(missing)}")
+    return computed
 
 
 def label_columns(cfg: dict) -> list[str]:

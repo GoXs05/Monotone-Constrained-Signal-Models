@@ -12,4 +12,5 @@ def flow_imbalance(df: pl.DataFrame, lookbacks_s: list[int]) -> pl.DataFrame:
         # No trades in the window reads as zero imbalance, not missing
         imb = pl.when(total > 0).then((buy - sell) / total).otherwise(0.0)
         cols.append(imb.alias(f"flow_imb_{w}s"))
+        cols.append(pl.col("n_trades").rolling_sum_by("t", window).alias(f"trades_{w}s"))
     return df.with_columns(cols)

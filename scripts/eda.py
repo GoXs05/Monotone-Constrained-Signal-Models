@@ -12,7 +12,7 @@ import polars as pl
 
 from msig.config import RESULTS_DIR, day_range, load_experiment, write_meta
 from msig.data.load import load_days
-from msig.features.build import feature_columns
+from msig.features.build import model_features
 
 SERIES = "#2a78d6"
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
@@ -85,7 +85,7 @@ def main() -> None:
     days = day_range(start, end)
     lat = args.latency if args.latency is not None else cfg["align"]["latency_ms"]
     horizons = args.horizon or cfg["labels"]["horizons_s"]
-    feats = feature_columns(cfg)
+    feats = model_features(cfg)
     ycol = "yv_{}s" if cfg["labels"]["vol_normalize"] else "y_{}s"
 
     out_dir = RESULTS_DIR / "eda"

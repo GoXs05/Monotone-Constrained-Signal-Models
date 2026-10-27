@@ -28,10 +28,15 @@ tick_size:
 
 labels:
   horizons_s: [1, 5, 10, 30, 60, 300]
-  vol_normalize: false
+  primary_horizon_s: 10
+  # Raw bps is primary; vol-normalized yv_* is a secondary robustness run
+  primary_label: raw
+  vol_normalize: true
 
 features:
-  flow_lookbacks_s: [1, 5, 30, 60, 300]
+  # Model inputs, fixed before any walk-forward result
+  model: [imb_l1, flow_imb_5s, flow_imb_30s]
+  flow_lookbacks_s: [5, 30]
   vol_window_s: 300
 
 regime:

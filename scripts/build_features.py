@@ -62,6 +62,25 @@ def zero_label_report(days: list[dt.date], cfg: dict) -> pl.DataFrame:
     return pl.DataFrame(rows)
 
 
+def empty_window_report(days: list[dt.date], cfg: dict) -> pl.DataFrame:
+    """Per day, fraction of grid points whose trailing trade window holds no trades."""
+    lat = cfg["align"]["latency_ms"]
+    frames = []
+    for symbol in cfg["assets"]:
+        paths = [parquet_path(f"features_L{lat}", symbol, d, cfg) for d in days]
+        frames.append(
+            pl.scan_parquet(paths)
+            .group_by(date=pl.from_epoch("t", time_unit="ms").dt.date())
+            .agg(
+                (pl.col(f"trades_{w}s") == 0).mean().alias(f"empty_{w}s_frac")
+                for w in cfg["features"]["flow_lookbacks_s"]
+            )
+            .with_columns(symbol=pl.lit(symbol))
+            .collect()
+        )
+    return pl.concat(frames)
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--start", type=dt.date.fromisoformat)
@@ -82,6 +101,13 @@ def main() -> None:
             for day in days:
                 build_day(symbol, day, lat, cfg)
             print(f"features {symbol} L={lat} done", flush=True)
+
+    dq_path = RESULTS_DIR / "data_quality.csv"
+    empty = empty_window_report(days, cfg)
+    dq = pl.read_csv(dq_path, try_parse_dates=True)
+    dq = dq.drop([c for c in empty.columns if c.startswith("empty_")], strict=False)
+    dq.join(empty, on=["date", "symbol"], how="left").write_csv(dq_path)
+    write_meta(dq_path, cfg)
 
     report = zero_label_report(days, cfg)
     out = RESULTS_DIR / "label_zero_fraction.csv"

@@ -12,7 +12,11 @@ N_SECONDS = 900
 SYMBOL = "BTCUSDT"
 CFG = {
     "tick_size": {SYMBOL: 0.1},
-    "features": {"flow_lookbacks_s": [1, 5, 30], "vol_window_s": 60},
+    "features": {
+        "model": ["imb_l1", "flow_imb_5s", "flow_imb_30s"],
+        "flow_lookbacks_s": [1, 5, 30],
+        "vol_window_s": 60,
+    },
     "labels": {"horizons_s": [1, 5, 30], "vol_normalize": True},
 }
 
