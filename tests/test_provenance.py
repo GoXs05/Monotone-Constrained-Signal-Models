@@ -134,3 +134,11 @@ def test_dirty_tree_refused_unless_allowed(monkeypatch):
     with pytest.raises(prov.DirtyTreeError):
         prov.require_clean(allow_dirty=False)
     prov.require_clean(allow_dirty=True)
+
+
+def test_lockfile_change_makes_stamp_stale(tmp_path):
+    path = tmp_path / "x.parquet"
+    a = make_stamp({"k": 1}, ["src/msig/provenance.py"], "abc")
+    assert "lock_hash" in a
+    write_stamped(pl.DataFrame({"x": [1]}), path, a)
+    assert not is_current(path, {**a, "lock_hash": "0" * 16})

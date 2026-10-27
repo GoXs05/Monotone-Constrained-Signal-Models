@@ -135,6 +135,8 @@ def with_context(kind: str, symbol: str, day: dt.date, cfg: dict, allow_holdout:
 
 
 ALIGN_CODE = [
+    "src/msig/__init__.py",
+    "src/msig/data/__init__.py",
     "src/msig/data/align.py",
     "src/msig/data/load.py",
     "src/msig/config.py",

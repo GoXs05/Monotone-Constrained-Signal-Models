@@ -75,6 +75,7 @@ def build_frame(aligned: pl.DataFrame, cfg: dict, symbol: str) -> pl.DataFrame:
 
 FEATURE_CODE = [
     *ALIGN_CODE,
+    "src/msig/features/__init__.py",
     "src/msig/features/book.py",
     "src/msig/features/flow.py",
     "src/msig/features/regime.py",

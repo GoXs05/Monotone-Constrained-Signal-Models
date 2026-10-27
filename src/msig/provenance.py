@@ -13,7 +13,8 @@ from msig.config import ROOT
 
 STAMP_KEY = b"msig_stamp"
 # Fields that decide staleness; git is recorded for provenance only
-MATCH_FIELDS = ("code_hash", "config_hash")
+MATCH_FIELDS = ("code_hash", "config_hash", "lock_hash")
+LOCKFILE = "uv.lock"
 
 
 class DirtyTreeError(RuntimeError):
@@ -32,11 +33,19 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:16]
 
 
+def _read(path: str) -> bytes:
+    # Normalize line endings so Windows checkouts hash the same as the committed blobs
+    return (ROOT / path).read_bytes().replace(b"\r\n", b"\n")
+
+
 @cache
 def code_hash(paths: tuple[str, ...]) -> str:
-    # Normalize line endings so Windows checkouts hash the same as the committed blobs
-    parts = [p.encode() + b"\0" + (ROOT / p).read_bytes().replace(b"\r\n", b"\n") for p in paths]
-    return _sha(b"\0".join(sorted(parts)))
+    return _sha(b"\0".join(sorted(p.encode() + b"\0" + _read(p) for p in paths)))
+
+
+@cache
+def lock_hash() -> str:
+    return _sha(_read(LOCKFILE))
 
 
 def config_hash(payload: dict) -> str:
@@ -47,6 +56,7 @@ def make_stamp(payload: dict, code_paths: list[str], git: str) -> dict:
     return {
         "git": git,
         "code_hash": code_hash(tuple(code_paths)),
+        "lock_hash": lock_hash(),
         "config_hash": config_hash(payload),
         "config": json.loads(json.dumps(payload, sort_keys=True, default=str)),
     }
