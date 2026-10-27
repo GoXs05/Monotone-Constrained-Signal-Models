@@ -5,7 +5,13 @@ import polars as pl
 import pytest
 
 from msig.data.align import align_frames, make_grid
-from msig.features.build import build_frame, feature_columns
+from msig.features.build import (
+    EXECUTION_ONLY,
+    aux_columns,
+    build_frame,
+    feature_columns,
+    model_features,
+)
 
 T0 = 1_700_000_000_000
 N_SECONDS = 900
@@ -61,9 +67,18 @@ def corrupt_after(df, ts_col, cutoff, noise):
     return pl.concat([kept, fresh]).sort(ts_col)
 
 
+# spread_ticks is execution cost at t only and never an entry input
+CHECKED = [c for c in feature_columns(CFG) if c not in EXECUTION_ONLY]
+
+
+def test_checked_covers_model_and_aux():
+    assert set(model_features(CFG)) <= set(CHECKED)
+    assert set(aux_columns(CFG)) - set(EXECUTION_ONLY) <= set(CHECKED)
+
+
 def features(book, trades, lat):
     aligned = align_frames(book, trades, make_grid(T0, N_SECONDS), lat)
-    return build_frame(aligned, CFG, SYMBOL).select("t", *feature_columns(CFG))
+    return build_frame(aligned, CFG, SYMBOL).select("t", *CHECKED)
 
 
 @pytest.mark.parametrize("lat", [0, 50, 250])

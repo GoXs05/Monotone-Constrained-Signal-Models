@@ -8,8 +8,16 @@ from msig.labels import add_labels
 LABEL_INPUTS = ["label_mid", "label_ts"]
 
 
+# Execution cost at t only, never an entry input, so the lookahead test exempts it
+EXECUTION_ONLY = ["spread_ticks"]
+
+
 def model_features(cfg: dict) -> list[str]:
-    return list(cfg["features"]["model"])
+    feats = list(cfg["features"]["model"])
+    banned = set(feats) & set(EXECUTION_ONLY)
+    if banned:
+        raise ValueError(f"execution-only columns cannot be model inputs: {sorted(banned)}")
+    return feats
 
 
 def aux_columns(cfg: dict) -> list[str]:
