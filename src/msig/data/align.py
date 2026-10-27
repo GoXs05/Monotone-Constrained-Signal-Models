@@ -172,3 +172,9 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def value_at_offset(df: pl.DataFrame, col: str, offset_s: int, name: str) -> pl.DataFrame:
+    """Add `name` = value of `col` at grid time t + offset_s, null where that row is absent."""
+    other = df.select((pl.col("t") - offset_s * 1000).alias("t"), pl.col(col).alias(name))
+    return df.join(other, on="t", how="left").sort("t")

@@ -1,7 +1,7 @@
 export PYTHONIOENCODING := utf-8
 PY := uv run python
 
-.PHONY: data features test synthetic walkforward learning-curve holdout lint
+.PHONY: data features eda test synthetic walkforward learning-curve holdout lint
 
 data:
 	$(PY) -m msig.data.download
@@ -9,6 +9,9 @@ data:
 
 features:
 	$(PY) scripts/build_features.py
+
+eda:
+	$(PY) scripts/eda.py
 
 test:
 	uv run pytest -q
